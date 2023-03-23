@@ -1,0 +1,16 @@
+---
+title: "covid_recovery_analysis"
+author: "Cary Ni"
+date: "2023-03-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+
+```{r}
+recovery_df = get(load("recovery.rdata"))
+```
+
