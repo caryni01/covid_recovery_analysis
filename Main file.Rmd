@@ -30,6 +30,15 @@ set.seed(2023)
 train_row = createDataPartition(y = dat$recovery_time, p = 0.8, list = FALSE)
 ```
 
+```{r}
+# create covariates matrix for training and test
+predictors_train = model.matrix(recovery_time ~ ., data = dat[train_row, -1])[, -1]
+predictors_test = model.matrix(recovery_time ~ ., data = dat[-train_row, -1])[, -1]
+# create response vector for training and test
+response_train = dat[train_row, -1]$recovery_time
+response_test = dat[-train_row, -1]$recovery_time
+```
+
 ## Exploratory analysis and data visualization
 
 ### Visualize potential relationship between reponse variable and numeric predictors
@@ -72,15 +81,63 @@ boxplot(recovery_time ~ study, data = dat, xlab = "study", col = myColors, ylim=
 ### Correlation plot to check collinearity between covariates (based on training data) 
 
 ```{r}
-predictors = model.matrix(recovery_time ~ ., data = dat[train_row, -1])[, -1]
-cor(predictors) %>% corrplot(
+cor(predictors_train) %>% corrplot(
   method = "circle", type = "full", 
   addCoef.col = 1, number.font =0.5,
   tl.col="black", tl.srt=90, tl.cex = 0.5,
   insig = "blank", diag=FALSE, number.cex = .3)
 ```
 
-It can be seen from the scatterplots above that `SBP`, `LDL`, and `age` are linearly correlated to recovery time. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates. 
+It can be seen from the scatterplots above that `SBP`, `LDL`, and `age` are the continuous variables linearly correlated to `recovery_time` while no apparent discrepancy is found when finding the association between `recovery_time` and the categorical variables of different levels. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates (none of them exceed the threshold of 0.8). 
 
 ## Model Training
+
+### Ordinary Least square
+
+```{r}
+# set train method
+ctrl_1 = trainControl(method = "cv", number = 10)
+# build the linear least squared model with caret
+set.seed(1)
+lm_model = train(predictors_train, response_train, method = "lm", trControl = ctrl_1)
+par(mfrow = c(2, 2))
+plot(lm_model$finalModel)
+```
+
+While ordinary linear regression assumes linear relationship, normality of residuals, homoscedasticity, and independence of residual error terms, it can be seen from the diagnostic plots that the assumptions of normally distributed residuals and homoscedasticity are violated. Therefore, regularization methods and nonlinear methods should be introduced.
+
+### Elastic net regression
+
+```{r}
+set.seed(1)
+# build elastic net model with caret
+elnet_model = train(predictors_train, response_train, 
+                    method = "glmnet",
+                    tuneGrid = expand.grid(alpha = seq(0, 1, length=21),
+                                           lambda = exp(seq(-2, 8, length=50))),
+                    trControl = ctrl_1)
+myCol<- rainbow(21)
+myPar <- list(superpose.symbol = list(col = myCol),
+superpose.line = list(col = myCol))
+plot(elnet_model, par.settings = myPar)
+# show the best lambda and alpha combination with lowest cv rmse
+elnet_model$bestTune
+```
+
+### Partial least squares
+
+```{r}
+set.seed(1)
+pls_model = train(predictors_train, response_train,
+                method = "pls",
+                # 18 variables in total
+                tuneGrid = data.frame(ncomp = 1:18), 
+                trControl = ctrl_1,
+                preProcess = c("center", "scale"))
+ggplot(pls_model, highlight = TRUE) + 
+  scale_x_continuous(breaks = seq(0,20,by=1))
+```
+
+While the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives a penalty coefficient at 1, which is equivalent to the Lasso model. The partial least square model has 12 components when the cv error is minimized. 
+
 
