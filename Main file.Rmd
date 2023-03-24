@@ -6,11 +6,81 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+library(tidyverse)
+library(AppliedPredictiveModeling)
+library(caret)
+library(glmnet)
+library(corrplot)
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 ```
 
+```{r}
+# load the external dataset 
+load("recovery.rdata")
+# change the variable type based on the reference
+index_factor = c(3, 4, 5,  9, 10, 13, 14, 15)
+index_numer = c(2, 6, 7, 8, 11, 12)
+dat[, index_factor]= lapply(dat[, index_factor], as.factor)
+# extract 2000 samples for analysis
+set.seed(2604)
+dat <- dat[sample(1:10000, 2000),]
+summary(dat)
+# seperate training set and test set
+set.seed(2023)
+train_row = createDataPartition(y = dat$recovery_time, p = 0.8, list = FALSE)
+```
+
+## Exploratory analysis and data visualization
+
+### Visualize potential relationship between reponse variable and numeric predictors
 
 ```{r}
-recovery_df = get(load("recovery.rdata"))
+# simple visualization of the numeric data
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+featurePlot(x = dat[, index_numer],
+            y = dat$recovery_time, 
+            plot = "scatter", 
+            type = c("p", "smooth"),
+            layout = c(3, 2))
+
 ```
+
+### Visualize potential relationship between reponse variable and categorical predictors
+
+```{r}
+# simple visualization of the categorical data
+par(mfrow=c(1,2))
+myColors = c(rgb(0.1,0.1,0.7,0.5) , rgb(0.8,0.1,0.3,0.6), rgb(0.8,0.8,0.3,0.5),
+             rgb(0.4,0.2,0.3,0.6))
+
+boxplot(recovery_time ~ gender, data = dat, xlab = "gender", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ race, data = dat, xlab = "race", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ smoking, data = dat, xlab = "smoking status", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ hypertension, data = dat, xlab = "hypertension", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ diabetes, data = dat, xlab = "diabetes", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ vaccine, data = dat, xlab = "vaccine", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ severity, data = dat, xlab = "diabetes", col = myColors, ylim=c(0, 150))
+boxplot(recovery_time ~ study, data = dat, xlab = "study", col = myColors, ylim=c(0, 150))
+```
+
+### Correlation plot to check collinearity between covariates (based on training data) 
+
+```{r}
+predictors = model.matrix(recovery_time ~ ., data = dat[train_row, -1])[, -1]
+cor(predictors) %>% corrplot(
+  method = "circle", type = "full", 
+  addCoef.col = 1, number.font =0.5,
+  tl.col="black", tl.srt=90, tl.cex = 0.5,
+  insig = "blank", diag=FALSE, number.cex = .3)
+```
+
+It can be seen from the scatterplots above that `SBP`, `LDL`, and `age` are linearly correlated to recovery time. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates. 
+
+## Model Training
 
