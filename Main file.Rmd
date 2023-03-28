@@ -10,6 +10,9 @@ library(tidyverse)
 library(AppliedPredictiveModeling)
 library(caret)
 library(glmnet)
+library(mgcv)
+library(earth)
+library(gbm)
 library(corrplot)
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 ```
@@ -98,7 +101,7 @@ It can be seen from the scatterplots above that `SBP`, `LDL`, and `age` are the 
 # set train method
 ctrl_1 = trainControl(method = "cv", number = 10)
 # build the linear least squared model with caret
-set.seed(1)
+set.seed(2)
 lm_model = train(predictors_train, response_train, method = "lm", trControl = ctrl_1)
 par(mfrow = c(2, 2))
 plot(lm_model$finalModel)
@@ -109,7 +112,7 @@ While ordinary linear regression assumes linear relationship, normality of resid
 ### Elastic net regression
 
 ```{r}
-set.seed(1)
+set.seed(2)
 # build elastic net model with caret
 elnet_model = train(predictors_train, response_train, 
                     method = "glmnet",
@@ -127,7 +130,7 @@ elnet_model$bestTune
 ### Partial least squares
 
 ```{r}
-set.seed(1)
+set.seed(2)
 pls_model = train(predictors_train, response_train,
                 method = "pls",
                 # 18 variables in total
@@ -140,4 +143,97 @@ ggplot(pls_model, highlight = TRUE) +
 
 While the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives a penalty coefficient at 1, which is equivalent to the Lasso model. The partial least square model has 12 components when the cv error is minimized. 
 
+### Generalized Additive Models (GAM)
+
+```{r}
+set.seed(2)
+tune_Grid = data.frame(method = "GCV.Cp", select = c(TRUE, FALSE))
+gam_model = train(predictors_train, response_train, 
+                   method = "gam",
+                  tuneGrid = tune_Grid,
+                  trControl = ctrl_1)
+par(mfrow = c(2, 2))
+plot(gam_model$finalModel, shade = TRUE)
+```
+
+### Multivariate adaptive regression spline model (MARS)
+
+```{r cache=TRUE}
+set.seed(2)
+# Set tuning parameters (25 as maximum number of terms taken since only 18 predictors are used)
+mars_grid = expand.grid(degree = 1:3, nprune = 2:25)
+# Fit MARS model
+mars_model = train(predictors_train, response_train, 
+                   method = "earth",
+                   tuneGrid = mars_grid,
+                   trControl = ctrl_1)
+# Plot the model
+plot(mars_model)
+mars_model$bestTune
+```
+
+### K-Nearest Neighbors (KNN)
+
+```{r}
+set.seed(2)
+knn_grid = expand.grid(k = seq(5, 13, by = 1))
+knn_model = train(predictors_train, response_train,
+                  method = "knn",
+                  preProcess = c("center", "scale"),
+                  trControl = ctrl_1,
+                  tuneGrid = knn_grid)
+knn_model$bestTune
+```
+
+### Random Forest Regression
+
+```{r cache=TRUE}
+set.seed(2)
+# squared root of 18 is around 4.2, therefore 3 to 5 predictors are considered in tree splits in this case
+rf_grid = expand.grid(mtry = c(3:6))
+rf_model = train(predictors_train, response_train,
+                  method = "rf",
+                 preProcess = c("center", "scale"),
+                 trControl = ctrl_1,
+                 tuneGrid = rf_grid)
+plot(rf_model)
+```
+
+### Generalized Boosted Regression
+
+```{r}
+set.seed(2)
+# setting number of trees, depth, learning rate, and default leaves number
+gbm_grid = expand.grid(
+  n.trees = c(seq(50, 400, by = 50)),
+  interaction.depth = c(1, 2), 
+  shrinkage = 0.1,
+  n.minobsinnode = 10
+)
+gbm_model = train(predictors_train, response_train,
+                  method = "gbm",
+                 preProcess = c("center", "scale"),
+                 trControl = ctrl_1,
+                 tuneGrid = gbm_grid,
+                 verbose = FALSE)
+plot(gbm_model)
+```
+
+
+```{r}
+# compare model performance through sampling method
+resamp = resamples(list(
+  lm = lm_model,
+  enet = elnet_model,
+  pls = pls_model,
+  gam = gam_model,
+  mars = mars_model,
+  knn = knn_model,
+  rf = rf_model,
+  gbm = gbm_model
+))
+# plot resampling rmse
+bwplot(resamp, metric = "RMSE")
+summary(resamp)
+```
 
