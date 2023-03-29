@@ -99,9 +99,9 @@ It can be seen from the scatterplots above that `SBP`, `LDL`, and `age` are the 
 
 ```{r}
 # set train method
-ctrl_1 = trainControl(method = "cv", number = 10)
+ctrl_1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 # build the linear least squared model with caret
-set.seed(2)
+set.seed(1)
 lm_model = train(predictors_train, response_train, method = "lm", trControl = ctrl_1)
 par(mfrow = c(2, 2))
 plot(lm_model$finalModel)
@@ -112,7 +112,7 @@ While ordinary linear regression assumes linear relationship, normality of resid
 ### Elastic net regression
 
 ```{r}
-set.seed(2)
+set.seed(1)
 # build elastic net model with caret
 elnet_model = train(predictors_train, response_train, 
                     method = "glmnet",
@@ -130,7 +130,7 @@ elnet_model$bestTune
 ### Partial least squares
 
 ```{r}
-set.seed(2)
+set.seed(1)
 pls_model = train(predictors_train, response_train,
                 method = "pls",
                 # 18 variables in total
@@ -141,12 +141,12 @@ ggplot(pls_model, highlight = TRUE) +
   scale_x_continuous(breaks = seq(0,20,by=1))
 ```
 
-While the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives a penalty coefficient at 1, which is equivalent to the Lasso model. The partial least square model has 12 components when the cv error is minimized. 
+While the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives a penalty coefficient at 1, which is equivalent to the Lasso model. The partial least square model has 11 components when the cv error is minimized. 
 
 ### Generalized Additive Models (GAM)
 
 ```{r}
-set.seed(2)
+set.seed(1)
 tune_Grid = data.frame(method = "GCV.Cp", select = c(TRUE, FALSE))
 gam_model = train(predictors_train, response_train, 
                    method = "gam",
@@ -159,9 +159,9 @@ plot(gam_model$finalModel, shade = TRUE)
 ### Multivariate adaptive regression spline model (MARS)
 
 ```{r cache=TRUE}
-set.seed(2)
-# Set tuning parameters (25 as maximum number of terms taken since only 18 predictors are used)
-mars_grid = expand.grid(degree = 1:3, nprune = 2:25)
+set.seed(1)
+# Set tuning parameters (20 as maximum number of terms taken since only 18 predictors are used)
+mars_grid = expand.grid(degree = 1:3, nprune = 2:20)
 # Fit MARS model
 mars_model = train(predictors_train, response_train, 
                    method = "earth",
@@ -175,8 +175,8 @@ mars_model$bestTune
 ### K-Nearest Neighbors (KNN)
 
 ```{r}
-set.seed(2)
-knn_grid = expand.grid(k = seq(5, 13, by = 1))
+set.seed(1)
+knn_grid = expand.grid(k = seq(7, 15, by = 1))
 knn_model = train(predictors_train, response_train,
                   method = "knn",
                   preProcess = c("center", "scale"),
@@ -185,24 +185,10 @@ knn_model = train(predictors_train, response_train,
 knn_model$bestTune
 ```
 
-### Random Forest Regression
-
-```{r cache=TRUE}
-set.seed(2)
-# squared root of 18 is around 4.2, therefore 3 to 5 predictors are considered in tree splits in this case
-rf_grid = expand.grid(mtry = c(3:6))
-rf_model = train(predictors_train, response_train,
-                  method = "rf",
-                 preProcess = c("center", "scale"),
-                 trControl = ctrl_1,
-                 tuneGrid = rf_grid)
-plot(rf_model)
-```
-
 ### Generalized Boosted Regression
 
 ```{r}
-set.seed(2)
+set.seed(1)
 # setting number of trees, depth, learning rate, and default leaves number
 gbm_grid = expand.grid(
   n.trees = c(seq(50, 400, by = 50)),
@@ -219,6 +205,7 @@ gbm_model = train(predictors_train, response_train,
 plot(gbm_model)
 ```
 
+### Models comparsion based on cross validation error
 
 ```{r}
 # compare model performance through sampling method
@@ -229,7 +216,6 @@ resamp = resamples(list(
   gam = gam_model,
   mars = mars_model,
   knn = knn_model,
-  rf = rf_model,
   gbm = gbm_model
 ))
 # plot resampling rmse
@@ -237,3 +223,24 @@ bwplot(resamp, metric = "RMSE")
 summary(resamp)
 ```
 
+## Results
+
+Generalized boosted regression model is selected as the final model for its best training performance with lowest cross-validation root mean square error (23.78) among all models. The test mean squared error of this boosted regression model is 786.4. As shown by the final model, `bmi` is believed as the most important predictor, which accounts for more than 63% of the reduction to the loss function given this set of predictors. `height` and `weight` are second and third most important predictors because of their mathematical relationship to `bmi`. It can been seen from a partial dependence plot that the recovery time is relatively short for individuals with bmi from 23-30, which indicates that the obese patients with bmi greater than 30 tend to experience a remarkably long recovery period from Covid-19. `Vaccine`, another factor that draw the public attention, does help to shorten the recovery time  as shown by the partial dependence plot. On the other hand, the variables such as systolic blood pressure `(SBP)`, `race`, and `diabetes` generate little influence on the recovery time from Covid-19. 
+
+```{r}
+# get test mse
+predict_value = predict(gbm_model, newdata = predictors_test)
+test_mse = mean((predict_value - response_test)^2)
+test_mse
+par(mfrow = c(1, 1))
+summary(gbm_model,
+        cBars = 10,
+        las = 2)
+p1 = pdp::partial(gbm_model, pred.var = c("bmi"), 
+                  grid.resolution = 10) %>% autoplot()
+p2 = pdp::partial(gbm_model, pred.var = c("vaccine1"), 
+                  grid.resolution = 10) %>% autoplot()
+gridExtra::grid.arrange(p1, p2, nrow = 2)
+```
+
+## Conclusion
