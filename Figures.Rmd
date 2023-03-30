@@ -1,6 +1,8 @@
 ---
 title: "Figures and outputs"
-output: html_document
+output: 
+  pdf_document :
+    latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
@@ -159,8 +161,8 @@ plot(gam_model$finalModel, shade = TRUE)
 
 ```{r}
 set.seed(1)
-# Set tuning parameters (20 as maximum number of terms taken since only 18 predictors are used)
-mars_grid = expand.grid(degree = 1:3, nprune = 2:20)
+# Set tuning parameters (18 as maximum number of terms taken since only 18 predictors are used)
+mars_grid = expand.grid(degree = 1:3, nprune = 2:18)
 # Fit MARS model
 mars_model = train(predictors_train, response_train, 
                    method = "earth",
@@ -168,13 +170,14 @@ mars_model = train(predictors_train, response_train,
                    trControl = ctrl_1)
 # Plot the model
 plot(mars_model)
+# summary(mars_model)
 ```
 
 ### K-Nearest Neighbors (KNN)
 
 ```{r}
 set.seed(1)
-knn_grid = expand.grid(k = seq(7, 15, by = 1))
+knn_grid = expand.grid(k = seq(5, 15, by = 1))
 knn_model = train(predictors_train, response_train,
                   method = "knn",
                   preProcess = c("center", "scale"),
@@ -193,7 +196,7 @@ gbm_grid = expand.grid(
   n.trees = c(seq(100, 1000, by = 100)),
   interaction.depth = c(1, 2, 3), 
   shrinkage = 0.02,
-  n.minobsinnode = 10
+  n.minobsinnode = 5
 )
 gbm_model = train(predictors_train, response_train,
                   method = "gbm",
@@ -201,8 +204,7 @@ gbm_model = train(predictors_train, response_train,
                  trControl = ctrl_1,
                  tuneGrid = gbm_grid,
                  verbose = FALSE)
-plot(gbm_model)
-
+plot(gbm_model, highlight = TRUE)
 ```
 
 ### Models comparsion based on cross validation error
@@ -220,6 +222,7 @@ resamp = resamples(list(
 ))
 # plot resampling rmse
 bwplot(resamp, metric = "RMSE")
+# summary(resamp)
 ```
 
 ## Results
