@@ -28,7 +28,6 @@ dat[, index_factor]= lapply(dat[, index_factor], as.factor)
 # extract 2000 samples for analysis
 set.seed(2604)
 dat <- dat[sample(1:10000, 2000),]
-summary(dat)
 # seperate training set and test set
 set.seed(2023)
 train_row = createDataPartition(y = dat$recovery_time, p = 0.8, list = FALSE)
@@ -51,6 +50,8 @@ This project aims to develop a predication model for recovery time along with th
 ### Visualize potential relationship between reponse variable and numeric predictors
 
 ```{r}
+# summary statistics
+summary(dat)
 # simple visualization of the numeric data
 theme1 <- trellis.par.get()
 theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
@@ -95,7 +96,7 @@ cor(predictors_train) %>% corrplot(
   insig = "blank", diag=FALSE, number.cex = .3)
 ```
 
-It can be seen from the scatterplots below that `SBP`, `LDL`, and `age` are the continuous variables linearly correlated (small correlation factor though) to `recovery_time` while no apparent discrepancy is found when finding the association between `recovery_time` and the categorical variables of different levels. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates (none of them exceed the threshold of 0.8). 
+It can be seen from the scatterplots below that `SBP`, `LDL`, and `age` are the continuous variables linearly correlated (small correlation coefficient though) to `recovery_time` while no apparent discrepancy is found when finding the association between `recovery_time` and the categorical variables of different levels. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates (none of them exceed the threshold of 0.8). 
 
 ## Model Training
 
@@ -145,7 +146,7 @@ ggplot(pls_model, highlight = TRUE) +
   scale_x_continuous(breaks = seq(0,20,by=1))
 ```
 
-While the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives an alpha at 1, which is equivalent to the Lasso model. The partial least square model has 11 components when the cv error is minimized. The PLS model gives 14 components after cross-validation for best predictability. 
+Since the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of 10 folds cross validation, the resulting elastic net model gives an alpha at 1, which is equivalent to the Lasso model. The partial least square model has 11 components when the cv error is minimized. The PLS model gives 14 components after cross-validation for best predictability. 
 
 ### Generalized Additive Models (GAM)
 
@@ -156,9 +157,8 @@ gam_model = train(predictors_train, response_train,
                    method = "gam",
                   tuneGrid = tune_Grid,
                   trControl = ctrl_1)
-par(mfrow = c(2, 2))
+par(mfrow = c(3, 3))
 plot(gam_model$finalModel, shade = TRUE)
-summary(gam_model)
 ```
 
 For generalized additive model, the selected model after cross-validation has no penalty to each term, 6 out of 16 predictors get smooth terms while the rest of predictors are linearly related to the response variable. 
@@ -235,7 +235,6 @@ resamp = resamples(list(
 ))
 # plot resampling rmse
 bwplot(resamp, metric = "RMSE")
-summary(resamp)
 ```
 
 ## Results
