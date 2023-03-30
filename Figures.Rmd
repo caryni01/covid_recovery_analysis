@@ -229,7 +229,7 @@ bwplot(resamp, metric = "RMSE")
 # get test mse
 predict_value = predict(gbm_model, newdata = predictors_test)
 test_mse = mean((predict_value - response_test)^2)
-test_mse
+test_mse %>% knitr::knit_print()
 ```
 
 ### Variable importance plots 
