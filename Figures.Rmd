@@ -1,8 +1,6 @@
 ---
-title: "covid_recovery_analysis"
-author: "Cary Ni"
-date: "2023-03-23"
-output: github_document
+title: "Figures and outputs"
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -41,9 +39,6 @@ predictors_test = model.matrix(recovery_time ~ ., data = dat[-train_row, -1])[, 
 response_train = dat[train_row, -1]$recovery_time
 response_test = dat[-train_row, -1]$recovery_time
 ```
-
-## Introduction
-This project aims to develop a prediction model for recovery time along with the identification of potential risk factors associated with a long recovery time from Covid-19. The data come from a combination of three cohort studies that collect information through questionnaires and medical records and tracked over several years.   
 
 ## Exploratory analysis and data visualization
 
@@ -101,8 +96,6 @@ cor(predictors_train) %>% corrplot(
   insig = "blank", diag=FALSE, number.cex = .3)
 ```
 
-It can be seen from the scatterplots below that `SBP`, `LDL`, and `age` are the continuous variables linearly correlated (small correlation coefficient though) to `recovery_time` while no apparent discrepancy is found when finding the association between `recovery_time` and the categorical variables of different levels. The correlation plot suggests that `SBP` is positively correlated to `hypertension` while the correlation among `bmi`, `weight`, and `height` are foreseen. In short, there is no obvious collinearity among most of the covariates (none of them exceed the threshold of 0.8). 
-
 ## Model Training
 
 ### Ordinary Least square
@@ -116,8 +109,6 @@ lm_model = train(predictors_train, response_train, method = "lm", trControl = ct
 par(mfrow = c(2, 2))
 plot(lm_model$finalModel)
 ```
-
-While ordinary linear regression assumes linear relationship, normality of residuals, homoscedasticity, and independence of residual error terms, it can be seen from the diagnostic plots that the assumptions of normally distributed residuals and homoscedasticity are violated. Therefore, regularization methods and nonlinear methods should be introduced.
 
 ### Elastic net regression
 
@@ -151,8 +142,6 @@ ggplot(pls_model, highlight = TRUE) +
   scale_x_continuous(breaks = seq(0,20,by=1))
 ```
 
-Since the assumptions of OLS are not met, parameter regularization/dimension reduction methods of the elastic net and partial least squares are used for model building. Through the process of cross validation, the resulting elastic net model gives an alpha at 1, which is equivalent to the Lasso model with penalty coefficient of 0.135. The PLS model gives 14 components after cross-validation for best predictability. 
-
 ### Generalized Additive Models (GAM)
 
 ```{r}
@@ -165,8 +154,6 @@ gam_model = train(predictors_train, response_train,
 par(mfrow = c(3, 2))
 plot(gam_model$finalModel, shade = TRUE)
 ```
-
-For generalized additive model, the selected model after cross-validation has no penalty to each term, 6 out of 18 predictors get smooth terms while the rest of predictors are linearly related to the response variable. 
 
 ### Multivariate adaptive regression spline model (MARS)
 
@@ -181,10 +168,7 @@ mars_model = train(predictors_train, response_train,
                    trControl = ctrl_1)
 # Plot the model
 plot(mars_model)
-mars_model$bestTune
 ```
-
-In the selected multivariate adaptive regression spline model after cross-validation, there is 10 terms with degree of 3. Within the 7 predictors in the model, bmi is of most significance as it is included in 9 out of 10 terms. 
 
 ### K-Nearest Neighbors (KNN)
 
@@ -198,8 +182,6 @@ knn_model = train(predictors_train, response_train,
                   tuneGrid = knn_grid)
 knn_model$bestTune
 ```
-
-The selected KNN model has the tuning parameter k = 12 after cross-validation.
 
 ### Generalized Boosted Regression
 
@@ -222,8 +204,6 @@ gbm_model = train(predictors_train, response_train,
 plot(gbm_model)
 
 ```
-
-The resulting generalized boosted regression model has 600 trees with 2 splits performed on a tree when the learning rate is specified as 0.02 based on size of training set and each terminal node has at least 10 observations. 
 
 ### Models comparsion based on cross validation error
 
@@ -279,8 +259,3 @@ p4 = pdp::partial(gbm_model, pred.var = c("age"),
 
 grid.arrange(arrangeGrob(p1, p4, ncol = 2), arrangeGrob(p2, p3, ncol = 2))
 ```
-
-The generalized boosted regression model is selected as the final model for its best training performance with the lowest cross-validation root mean square error (23.66) among all models. This boosted regression model has a test mean squared error of 748.5. As shown by the final model, `BMI` is believed to be the most important predictor, which accounts for more than 63% of the reduction to the loss function given this set of predictors. `Height` and `Weight` are second and third most important predictors because of their mathematical relationship to BMI. A partial dependence plot shows that the recovery time is relatively short for individuals with a BMI between 23 and 30, whereas the obese patients with BMI greater than 30 tend to experience a remarkably long recovery period from Covid-19. `Vaccine`, another factor that draw the public attention, does help to slightly shorten the recovery time as shown by the partial dependence plot while the recovery time increases mildly as `Age` increases for the elderly over 50. On the other hand, the variables such as systolic blood pressure (`SBP`), `Race`, and `Diabetes` have little influence on the recovery time from Covid-19.
-
-## Conclusion
-Based on the generalized boosted regression model with the best performance in predictions, BMI is the single most important factor that influences long recovery time (as well as weight and height due to their mathematical relationship to BMI). Obese patients with a BMI over 32 will experience a remarkably longer recovery period compared to patients with a lower BMI. Other common risk factors, such as symptom severity and age, do have a positive correlation with the length of recovery time, while vaccination does shorten the recovery period. However, there is no evidence to suggest that the aforementioned factors have an effect on the scenario of long recovery time as they only associate with a mild difference in recovery time.
